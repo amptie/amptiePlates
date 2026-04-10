@@ -1,0 +1,8 @@
+## Interface: 11200
+## Title: amptiePlates
+## Notes: Lightweight enemy nameplate addon (TurtleWoW 1.12)
+## Author: amptie
+## Version: 0.2
+## SavedVariablesPerCharacter: AmptiePlatesDB
+
+amptiePlates.lua
