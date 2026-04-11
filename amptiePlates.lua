@@ -23,6 +23,7 @@ local function GetDB()
     if db.cbHeight   == nil then db.cbHeight   = 7    end
     if db.mode       == nil then db.mode       = "dps" end
     if db.enabled    == nil then db.enabled    = true  end
+    if db.clickThrough == nil then db.clickThrough = false end
     if not db.debuffWhitelist then db.debuffWhitelist = {} end
     if not db.buffWhitelist   then db.buffWhitelist   = {} end
     return db
@@ -576,7 +577,14 @@ local function InitPlate(plate)
     local origR, origG, origB = healthbar:GetStatusBarColor()
 
     -- Disable mouse on plate (prevents highlight)
-    plate:EnableMouse(false)
+    -- Right-click camera: forward right-click to mouselook
+    if db.clickThrough then
+        plate:SetScript("OnMouseDown", function()
+            if arg1 == "RightButton" then
+                MouselookStart()
+            end
+        end)
+    end
 
     -- Lock alpha to 1 on plate AND healthbar (prevent Blizzard from fading)
     local origPlateSetAlpha = plate.SetAlpha
@@ -605,8 +613,12 @@ local function InitPlate(plate)
         end
     end
 
-    -- Restyle healthbar: flat texture
+    -- Restyle healthbar: flat texture + correct size immediately
     healthbar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    healthbar:ClearAllPoints()
+    healthbar:SetPoint("TOP", plate, "TOP", 0, 0)
+    healthbar:SetWidth(db.barWidth)
+    healthbar:SetHeight(db.barHeight)
 
     -- Use Region 1 (Blizzard nameplate border) as our background
     -- Instead of stripping it, repurpose it as a dark fill behind the healthbar
@@ -814,6 +826,11 @@ local function InitPlate(plate)
             end
         end
         d.healthbar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+        local ddb = GetDB()
+        d.healthbar:ClearAllPoints()
+        d.healthbar:SetPoint("TOP", this, "TOP", 0, 0)
+        d.healthbar:SetWidth(ddb.barWidth)
+        d.healthbar:SetHeight(ddb.barHeight)
     end)
 end
 
@@ -1190,6 +1207,36 @@ local function CreateSettingsFrame()
     local cbLbl = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     cbLbl:SetPoint("LEFT", cbEnabled, "RIGHT", 6, 0)
     cbLbl:SetText("Enable Nameplates")
+
+    -- Click-through checkbox
+    local cbClick = CreateFrame("Button", nil, f)
+    cbClick:SetWidth(16); cbClick:SetHeight(16)
+    cbClick:SetPoint("TOPLEFT", f, "TOPLEFT", 160, -42)
+    cbClick:SetBackdrop({ bgFile="Interface\\Buttons\\WHITE8X8", edgeFile="Interface\\Buttons\\WHITE8X8", edgeSize=1, insets={left=0,right=0,top=0,bottom=0} })
+    local cbClickChk = cbClick:CreateTexture(nil, "OVERLAY")
+    cbClickChk:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+    cbClickChk:SetAllPoints(cbClick)
+    if db.clickThrough then cbClickChk:Show() else cbClickChk:Hide() end
+    cbClick:SetScript("OnClick", function()
+        local d = GetDB()
+        d.clickThrough = not d.clickThrough
+        if d.clickThrough then cbClickChk:Show() else cbClickChk:Hide() end
+        -- Apply immediately to all existing plates
+        for plate, pd in pairs(registry) do
+            if d.clickThrough then
+                plate:SetScript("OnMouseDown", function()
+                    if arg1 == "RightButton" then
+                        MouselookStart()
+                    end
+                end)
+            else
+                plate:SetScript("OnMouseDown", nil)
+            end
+        end
+    end)
+    local cbClickLbl = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    cbClickLbl:SetPoint("LEFT", cbClick, "RIGHT", 6, 0)
+    cbClickLbl:SetText("RMB Camera")
 
     AP_MakeSlider(f, "Bar Width", 60, 200, 5, db.barWidth, 14, -68, function(v)
         GetDB().barWidth = v
