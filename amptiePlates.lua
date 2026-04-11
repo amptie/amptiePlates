@@ -49,6 +49,18 @@ local AP_COLORS = {
     NEUTRAL_NPC  = { 1.00, 1.00, 0.30 },
 }
 
+local AP_CLASS_COLORS = {
+    WARRIOR     = { 0.78, 0.61, 0.43 },
+    PALADIN     = { 0.96, 0.55, 0.73 },
+    HUNTER      = { 0.67, 0.83, 0.45 },
+    ROGUE       = { 1.00, 0.96, 0.41 },
+    PRIEST      = { 1.00, 1.00, 1.00 },
+    SHAMAN      = { 0.00, 0.44, 0.87 },
+    MAGE        = { 0.41, 0.80, 0.94 },
+    WARLOCK     = { 0.58, 0.51, 0.79 },
+    DRUID       = { 1.00, 0.49, 0.04 },
+}
+
 local AP_THREAT_GREEN  = { 0.20, 0.90, 0.30 }
 local AP_THREAT_YELLOW = { 1.00, 0.85, 0.00 }
 local AP_THREAT_ORANGE = { 0.85, 0.45, 0.10 }
@@ -855,14 +867,27 @@ local function UpdatePlate(plate)
     local unitType = GetUnitType(pd.origColor[1], pd.origColor[2], pd.origColor[3])
     if unitType then
         local guid = AP_GetGuid(plate)
-        local tr, tg, tb = GetThreatColor(plate, guid, db)
-        if tr then
-            pd.curColor[1], pd.curColor[2], pd.curColor[3] = tr, tg, tb
-            pd.hpBg:SetBackdropBorderColor(tr * 0.6, tg * 0.6, tb * 0.6, 1)
+
+        -- Enemy players: always class color (no threat on players)
+        local isPlayer = guid and AP_HAS_SUPERWOW and UnitIsPlayer(guid)
+        if isPlayer then
+            local _, classToken = UnitClass(guid)
+            local classCol = classToken and AP_CLASS_COLORS[classToken]
+            if classCol then
+                pd.curColor[1], pd.curColor[2], pd.curColor[3] = classCol[1], classCol[2], classCol[3]
+                pd.hpBg:SetBackdropBorderColor(classCol[1] * 0.6, classCol[2] * 0.6, classCol[3] * 0.6, 1)
+            end
         else
-            local col = AP_COLORS[unitType] or AP_COLORS.ENEMY_NPC
-            pd.curColor[1], pd.curColor[2], pd.curColor[3] = col[1], col[2], col[3]
-            pd.hpBg:SetBackdropBorderColor(0.30, 0.30, 0.30, 1)
+            -- NPCs: threat color or default
+            local tr, tg, tb = GetThreatColor(plate, guid, db)
+            if tr then
+                pd.curColor[1], pd.curColor[2], pd.curColor[3] = tr, tg, tb
+                pd.hpBg:SetBackdropBorderColor(tr * 0.6, tg * 0.6, tb * 0.6, 1)
+            else
+                local col = AP_COLORS[unitType] or AP_COLORS.ENEMY_NPC
+                pd.curColor[1], pd.curColor[2], pd.curColor[3] = col[1], col[2], col[3]
+                pd.hpBg:SetBackdropBorderColor(0.30, 0.30, 0.30, 1)
+            end
         end
     end
 
