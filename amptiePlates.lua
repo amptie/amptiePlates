@@ -24,6 +24,7 @@ local function GetDB()
     if db.mode       == nil then db.mode       = "dps" end
     if db.enabled    == nil then db.enabled    = true  end
     if db.clickThrough == nil then db.clickThrough = false end
+    if db.overlap      == nil then db.overlap      = false end
     if not db.debuffWhitelist then db.debuffWhitelist = {} end
     if not db.buffWhitelist   then db.buffWhitelist   = {} end
     return db
@@ -1049,6 +1050,16 @@ mainFrame:SetScript("OnUpdate", function()
     local dt = arg1 or 0
     UpdateCastbars(dt)
 
+    -- Overlap: force plate size to 1x1 every frame (client constantly resets it)
+    if db.overlap then
+        for plate in pairs(registry) do
+            if plate:GetWidth() > 1 then
+                plate:SetWidth(1)
+                plate:SetHeight(1)
+            end
+        end
+    end
+
     -- Threat sharing timer (tier-dependent interval + jitter)
     shareTimer = shareTimer + dt
     if shareTimer >= activeTier.share + shareJitter then
@@ -1190,7 +1201,7 @@ local function CreateSettingsFrame()
         insets = { left=3, right=3, top=3, bottom=3 },
     }
     local f = CreateFrame("Frame", "AmptiePlatesSettings", UIParent)
-    f:SetWidth(320); f:SetHeight(215)
+    f:SetWidth(320); f:SetHeight(230)
     f:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
     f:SetFrameStrata("DIALOG")
     f:SetMovable(true); f:SetClampedToScreen(true)
@@ -1263,21 +1274,49 @@ local function CreateSettingsFrame()
     cbClickLbl:SetPoint("LEFT", cbClick, "RIGHT", 6, 0)
     cbClickLbl:SetText("RMB Camera")
 
-    AP_MakeSlider(f, "Bar Width", 60, 200, 5, db.barWidth, 14, -68, function(v)
+    -- Overlap checkbox (second row)
+    local cbOverlap = CreateFrame("Button", nil, f)
+    cbOverlap:SetWidth(16); cbOverlap:SetHeight(16)
+    cbOverlap:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -58)
+    cbOverlap:SetBackdrop({ bgFile="Interface\\Buttons\\WHITE8X8", edgeFile="Interface\\Buttons\\WHITE8X8", edgeSize=1, insets={left=0,right=0,top=0,bottom=0} })
+    local cbOverlapChk = cbOverlap:CreateTexture(nil, "OVERLAY")
+    cbOverlapChk:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+    cbOverlapChk:SetAllPoints(cbOverlap)
+    if db.overlap then cbOverlapChk:Show() else cbOverlapChk:Hide() end
+    cbOverlap:SetScript("OnClick", function()
+        local d = GetDB()
+        d.overlap = not d.overlap
+        if d.overlap then cbOverlapChk:Show() else cbOverlapChk:Hide() end
+        -- Apply immediately
+        for plate, pd in pairs(registry) do
+            if d.overlap then
+                plate:SetWidth(1)
+                plate:SetHeight(1)
+            else
+                plate:SetWidth(db.barWidth + 40)
+                plate:SetHeight(db.barHeight + 40)
+            end
+        end
+    end)
+    local cbOverlapLbl = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    cbOverlapLbl:SetPoint("LEFT", cbOverlap, "RIGHT", 6, 0)
+    cbOverlapLbl:SetText("Allow Overlap")
+
+    AP_MakeSlider(f, "Bar Width", 60, 200, 5, db.barWidth, 14, -80, function(v)
         GetDB().barWidth = v
     end)
 
-    AP_MakeSlider(f, "Bar Height", 4, 24, 1, db.barHeight, 14, -92, function(v)
+    AP_MakeSlider(f, "Bar Height", 4, 24, 1, db.barHeight, 14, -104, function(v)
         GetDB().barHeight = v
     end)
 
-    AP_MakeSlider(f, "Cast Height", 3, 16, 1, db.cbHeight, 14, -116, function(v)
+    AP_MakeSlider(f, "Cast Height", 3, 16, 1, db.cbHeight, 14, -128, function(v)
         GetDB().cbHeight = v
     end)
 
     -- Mode toggle
     local modeLbl = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    modeLbl:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -144)
+    modeLbl:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -156)
     modeLbl:SetText("Mode:")
     modeLbl:SetTextColor(0.8, 0.8, 0.85, 1)
 
@@ -1540,7 +1579,7 @@ local function CreateSettingsFrame()
     -- Debuff Whitelist button
     local dwlBtn = CreateFrame("Button", nil, f)
     dwlBtn:SetWidth(140); dwlBtn:SetHeight(20)
-    dwlBtn:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -176)
+    dwlBtn:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -188)
     dwlBtn:SetBackdrop(BD)
     dwlBtn:SetBackdropColor(0.12, 0.12, 0.15, 0.95)
     dwlBtn:SetBackdropBorderColor(0.35, 0.35, 0.4, 1)
