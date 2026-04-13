@@ -646,6 +646,23 @@ local function InitPlate(plate)
     -- Push healthbar above background bar
     healthbar:SetFrameLevel(hpBgBar:GetFrameLevel() + 1)
 
+    -- Make healthbar clickable for targeting
+    healthbar:EnableMouse(true)
+    healthbar:SetScript("OnMouseDown", function()
+        if arg1 == "LeftButton" then
+            local g = plate:GetName(1)
+            if g and g ~= "" and g ~= "0x0000000000000000" then
+                TargetUnit(g)
+            else
+                plate:Click("LeftButton")
+            end
+        elseif arg1 == "RightButton" then
+            if GetDB().clickThrough then
+                MouselookStart()
+            end
+        end
+    end)
+
     -- Border frame around healthbar
     local hpBg = CreateFrame("Frame", nil, healthbar)
     hpBg:SetPoint("TOPLEFT", healthbar, "TOPLEFT", -2, 2)
@@ -655,13 +672,45 @@ local function InitPlate(plate)
     hpBg:SetBackdropColor(0, 0, 0, 0)
     hpBg:SetBackdropBorderColor(0.30, 0.30, 0.30, 1)
 
-    -- Name text (above healthbar)
+    -- Target indicator arrows (> [Bar] <)
+    local arrowL = healthbar:CreateFontString(nil, "OVERLAY")
+    arrowL:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
+    arrowL:SetPoint("RIGHT", healthbar, "LEFT", -4, 0)
+    arrowL:SetText("|cFFFF2222>|r")
+    arrowL:Hide()
+
+    local arrowR = healthbar:CreateFontString(nil, "OVERLAY")
+    arrowR:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
+    arrowR:SetPoint("LEFT", healthbar, "RIGHT", 4, 0)
+    arrowR:SetText("|cFFFF2222<|r")
+    arrowR:Hide()
+
+    -- Name text (above healthbar) with clickable hit area
     local nameFS = healthbar:CreateFontString(nil, "OVERLAY")
     nameFS:SetFont("Fonts\\FRIZQT__.TTF", 9, "OUTLINE")
     nameFS:SetPoint("BOTTOM", healthbar, "TOP", 0, 3)
     nameFS:SetTextColor(1, 1, 1, 1)
 
-    -- Level text (left of healthbar)
+    local nameBtn = CreateFrame("Button", nil, healthbar)
+    nameBtn:SetPoint("BOTTOMLEFT", healthbar, "TOPLEFT", 0, 1)
+    nameBtn:SetPoint("BOTTOMRIGHT", healthbar, "TOPRIGHT", 0, 1)
+    nameBtn:SetHeight(14)
+    nameBtn:SetScript("OnMouseDown", function()
+        if arg1 == "LeftButton" then
+            local g = plate:GetName(1)
+            if g and g ~= "" and g ~= "0x0000000000000000" then
+                TargetUnit(g)
+            else
+                plate:Click("LeftButton")
+            end
+        elseif arg1 == "RightButton" then
+            if GetDB().clickThrough then
+                MouselookStart()
+            end
+        end
+    end)
+
+    -- Level text (left of healthbar, shifts left when target arrow visible)
     local levelFS = healthbar:CreateFontString(nil, "OVERLAY")
     levelFS:SetFont("Fonts\\FRIZQT__.TTF", 8, "OUTLINE")
     levelFS:SetPoint("RIGHT", healthbar, "LEFT", -3, 0)
@@ -713,13 +762,7 @@ local function InitPlate(plate)
     cbIconTex:SetAllPoints(cbIcon)
     cbIconTex:SetTexCoord(0.1, 0.9, 0.1, 0.9)
 
-    local cbIconBg = CreateFrame("Frame", nil, cbIcon)
-    cbIconBg:SetPoint("TOPLEFT", cbIcon, "TOPLEFT", -1, 1)
-    cbIconBg:SetPoint("BOTTOMRIGHT", cbIcon, "BOTTOMRIGHT", 1, -1)
-    cbIconBg:SetFrameLevel(cbIcon:GetFrameLevel() - 1)
-    cbIconBg:SetBackdrop(AP_BACKDROP)
-    cbIconBg:SetBackdropColor(0.05, 0.05, 0.05, 0.85)
-    cbIconBg:SetBackdropBorderColor(0.10, 0.10, 0.10, 1)
+    -- (no backdrop on cast icon to avoid black square artifacts)
 
     -- Aura icons (right of healthbar)
     local auraIcons = {}
@@ -759,6 +802,11 @@ local function InitPlate(plate)
                 if otype == "Texture" then
                     obj:SetTexture("")
                     obj:SetTexCoord(0, 0, 0, 0)
+                    -- Hook SetTexture so client can't restore cast icon
+                    local origSetTex = obj.SetTexture
+                    obj.SetTexture = function(s, t)
+                        origSetTex(s, "")
+                    end
                 elseif otype == "FontString" then
                     obj:SetWidth(0.001)
                 end
@@ -781,6 +829,8 @@ local function InitPlate(plate)
         cbIconTex = cbIconTex,
         origColor = { origR, origG, origB },
         curColor  = { 0.90, 0.20, 0.30 },
+        arrowL    = arrowL,
+        arrowR    = arrowR,
         auraIcons = auraIcons,
     }
     registry[plate] = pd
@@ -959,13 +1009,28 @@ local function UpdatePlate(plate)
         regions[6]:SetHeight(14)
     end
 
-    -- Target highlight
+    -- Target highlight + arrows
     if AP_HAS_SUPERWOW then
         local guid = AP_GetGuid(plate)
-        if guid and UnitIsUnit("target", guid) then
+        local isTarget = guid and UnitIsUnit("target", guid)
+        if isTarget then
             pd.nameFS:SetTextColor(1, 1, 0, 1)
+            pd.arrowL:Show()
+            pd.arrowR:Show()
+            -- Shift level/boss icon left of arrow
+            pd.levelFS:ClearAllPoints()
+            pd.levelFS:SetPoint("RIGHT", pd.arrowL, "LEFT", -1, 0)
+            pd.bossIcon:ClearAllPoints()
+            pd.bossIcon:SetPoint("RIGHT", pd.arrowL, "LEFT", 1, 0)
         else
             pd.nameFS:SetTextColor(1, 1, 1, 1)
+            pd.arrowL:Hide()
+            pd.arrowR:Hide()
+            -- Reset level/boss icon to healthbar
+            pd.levelFS:ClearAllPoints()
+            pd.levelFS:SetPoint("RIGHT", healthbar, "LEFT", -3, 0)
+            pd.bossIcon:ClearAllPoints()
+            pd.bossIcon:SetPoint("RIGHT", healthbar, "LEFT", -1, 0)
         end
     end
 
@@ -1023,6 +1088,7 @@ local function UpdateCastbars(dt)
                 if pd.cb:IsShown() then
                     pd.cb:Hide()
                     pd.cbIcon:Hide()
+                    pd.cbIconTex:SetTexture("")
                 end
             end
         end
