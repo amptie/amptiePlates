@@ -659,6 +659,14 @@ local function InitPlate(plate)
         elseif arg1 == "RightButton" then
             if GetDB().clickThrough then
                 MouselookStart()
+            else
+                local g = plate:GetName(1)
+                if g and g ~= "" and g ~= "0x0000000000000000" then
+                    TargetUnit(g)
+                    if UnitCanAttack("player", "target") and not UnitAffectingCombat("player") then
+                        AttackTarget()
+                    end
+                end
             end
         end
     end)
@@ -706,6 +714,14 @@ local function InitPlate(plate)
         elseif arg1 == "RightButton" then
             if GetDB().clickThrough then
                 MouselookStart()
+            else
+                local g = plate:GetName(1)
+                if g and g ~= "" and g ~= "0x0000000000000000" then
+                    TargetUnit(g)
+                    if UnitCanAttack("player", "target") and not UnitAffectingCombat("player") then
+                        AttackTarget()
+                    end
+                end
             end
         end
     end)
